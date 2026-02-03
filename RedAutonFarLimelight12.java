@@ -109,9 +109,10 @@ public class RedAutonFarLimelight12 extends OpMode {
 
     @Override
     public void start() {
-        limelight.pipelineSwitch(0);
+        limelight.pipelineSwitch(1);
         limelight.start();
         intake.setPower(0.75);
+        // TODO CHANGE TO WHATEVER VELOCITY IS BETWEEN HIGH AND LOW AND POSITION TO DEFAULT FAR HOOD ANGLE
         curry.setVelocity(1900);
         green.setPosition(0.4);
     }
