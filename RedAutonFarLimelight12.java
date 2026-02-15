@@ -5,8 +5,6 @@ import com.pedropathing.geometry.*;
 import com.pedropathing.math.MathFunctions;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
-
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.limelightvision.LLResult;
 
@@ -29,7 +27,6 @@ public class RedAutonFarLimelight12 extends OpMode {
 
     private Follower follower;
     private Limelight3A limelight;
-    private GoBildaPinpointDriver pinpoint;
     private DcMotorEx curry;
     private DcMotor coreHex, intake;
     private DcMotor frontLeft, frontRight, backLeft, backRight;
@@ -77,7 +74,6 @@ public class RedAutonFarLimelight12 extends OpMode {
         follower.setStartingPose(startPose);
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
         curry = hardwareMap.get(DcMotorEx.class, "flywheel");
         coreHex = hardwareMap.get(DcMotor.class, "coreHex");
@@ -100,9 +96,6 @@ public class RedAutonFarLimelight12 extends OpMode {
         // TODO CHANGE PIDF ONCE TUNED
         PIDFCoefficients PIDF = new PIDFCoefficients(1,0,0,16);
         curry.setPIDFCoefficients(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER, PIDF);
-
-        pinpoint.resetPosAndIMU();
-        pinpoint.update();
 
         buildPaths();
     }
@@ -307,7 +300,7 @@ public class RedAutonFarLimelight12 extends OpMode {
     }
 
     private void relocalize() {
-        double yaw = pinpoint.getHeading(AngleUnit.DEGREES);
+        double yaw = Math.toDegrees(follower.getPose().getHeading());
         limelight.updateRobotOrientation(yaw);
 
         LLResult result = limelight.getLatestResult();
