@@ -22,10 +22,9 @@ public class FlywheelTuning extends OpMode {
     public void init()
     {
         flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
-        flywheel.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         flywheel.setDirection(DcMotorEx.Direction.REVERSE);
         PIDFCoefficients PIDF = new PIDFCoefficients(P,0,0,F);
-        flywheel.setPIDFCoefficients(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER, PIDF);
+        flywheel.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, PIDF);
         telemetry.addLine("Init Complete");
     }
 
@@ -40,7 +39,7 @@ public class FlywheelTuning extends OpMode {
         }
 
         PIDFCoefficients PIDF = new PIDFCoefficients(P,0,0,F);
-        flywheel.setPIDFCoefficients(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER, PIDF);
+        flywheel.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, PIDF);
 
         flywheel.setVelocity(curTargetVelocity);
         double curVelocity = flywheel.getVelocity();
