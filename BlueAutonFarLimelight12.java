@@ -16,8 +16,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.teleop.NewBotTeleopBlue;
@@ -27,31 +27,36 @@ public class BlueAutonFarLimelight12 extends OpMode {
 
     private Follower follower;
     private Limelight3A limelight;
+    private VoltageSensor voltageSensor;
 
     private DcMotorEx curry;
     private DcMotor coreHex, intake;
     private DcMotor frontLeft, frontRight, backLeft, backRight;
-    private Servo green;
+    private Servo green; // Hood
 
     private final Timer shootTimer = new Timer();
 
+    //TODO CHANGE THESE 2
+    public static double F_STATIC = 13.5;
+    public static double P_STATIC = 10.0;
+    public static final double REFERENCE_VOLTAGE = 12.0;
     private static final double COREHEX_POWER = 0.75;
     private static final double SHOOT_TIME = 3.0;
     private static final double METERS_TO_INCHES = 39.3701;
     private static final double MAX_RELOCALIZE_JUMP_IN = 3.0;
-    //TODO CHANGE THESE
+
+    //TODO CHANGE THESE 2
 
     // Height of Limelight lens from floor (inches)
     private static final double LIMELIGHT_HEIGHT_IN = 9.5;
-    // Limelight mounting angle (degrees, positive = tilted up
+    // Limelight mounting angle (degrees, positive = tilted up)
     private static final double LIMELIGHT_MOUNT_ANGLE_DEG = 20.0;
-    private static final double GOAL_HEIGHT_IN = 35.0; //Center of goal
+    private static final double GOAL_HEIGHT_IN = 38.75;
 
-    private static final double GOAL_X = 9;
+    private static final double GOAL_X = 6.5;
     private static final double GOAL_Y = 138;
 
-    private final Pose startPose =
-            new Pose(65.664, 6.875, Math.toRadians(90));
+    private final Pose startPose = new Pose(65.664, 6.875, Math.toRadians(90));
 
     private PathChain path1, path2, path3, path4, path5,
             path6, path7, path8, path9, path10, path11, path12;
@@ -77,6 +82,9 @@ public class BlueAutonFarLimelight12 extends OpMode {
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
 
+        // Initialize Voltage Sensor (Automatically finds the first one)
+        voltageSensor = hardwareMap.voltageSensor.iterator().next();
+
         curry = hardwareMap.get(DcMotorEx.class, "flywheel");
         coreHex = hardwareMap.get(DcMotor.class, "coreHex");
         intake = hardwareMap.get(DcMotor.class, "intake");
@@ -93,12 +101,8 @@ public class BlueAutonFarLimelight12 extends OpMode {
         backLeft.setDirection(DcMotorSimple.Direction.REVERSE);
 
         curry.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        curry.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        curry.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        // TODO CHANGE PIDF ONCE TUNED
-        PIDFCoefficients PIDF = new PIDFCoefficients(1,0,0,16);
-        curry.setPIDFCoefficients(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER, PIDF);
-        
         buildPaths();
     }
 
@@ -107,6 +111,9 @@ public class BlueAutonFarLimelight12 extends OpMode {
         limelight.pipelineSwitch(0);
         limelight.start();
         intake.setPower(0.75);
+
+        // Initial PIDF update and spin up
+        updateFlywheelPIDF();
         curry.setVelocity(1900);
         green.setPosition(0.4);
     }
@@ -128,7 +135,7 @@ public class BlueAutonFarLimelight12 extends OpMode {
 
             case RELOCALIZE_1:
                 relocalize();
-                prepareShooter();
+                prepareShooter(); // Updates Voltage Comp & Target Velocity
                 shootTimer.resetTimer();
                 state = State.SHOOT_1;
                 break;
@@ -260,36 +267,43 @@ public class BlueAutonFarLimelight12 extends OpMode {
                 coreHex.setPower(0);
                 intake.setPower(0);
                 stopDrive();
-                NewBotTeleopBlue.startingPose=follower.getPose();
+                NewBotTeleopBlue.startingPose = follower.getPose();
                 break;
         }
     }
 
-    private double getDistanceToGoal() {
-        /*
-        LLResult result = limelight.getLatestResult();
-        if (result != null && result.isValid()) {
-            double ty = result.getTy();
+    // --- HELPER METHODS ---
 
-            double angleDeg = LIMELIGHT_MOUNT_ANGLE_DEG + ty;
-            double angleRad = Math.toRadians(angleDeg);
+    /**
+     * Reads battery voltage and adjusts the Feedforward (F) coefficient
+     * to ensure consistent shooting power as battery drains.
+     */
+    private void updateFlywheelPIDF() {
+        double currentVoltage = voltageSensor.getVoltage();
 
-            if (Math.abs(Math.tan(angleRad)) > 1e-3) {
-                return (GOAL_HEIGHT_IN - LIMELIGHT_HEIGHT_IN)
-                        / Math.tan(angleRad);
-            }
-        }
-         */
+        // Safety check
+        if (currentVoltage < 1) currentVoltage = 12.0;
 
-        // In case no work use pedropathing
-        Pose p = follower.getPose();
-        return Math.hypot(GOAL_X - p.getX(), GOAL_Y - p.getY());
+        // Calculate multiplier (e.g., if battery is 10V, mult is 1.2)
+        double voltageMultiplier = REFERENCE_VOLTAGE / currentVoltage;
+
+        // Apply multiplier to Feedforward only
+        double adjustedF = F_STATIC * voltageMultiplier;
+
+        PIDFCoefficients newPIDF = new PIDFCoefficients(P_STATIC, 0, 0, adjustedF);
+        curry.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, newPIDF);
     }
 
     private void prepareShooter() {
+        updateFlywheelPIDF();
         double d = getDistanceToGoal();
         curry.setVelocity(flywheelSpeed(d));
         green.setPosition(hoodAngle(d));
+    }
+
+    private double getDistanceToGoal() {
+        Pose p = follower.getPose();
+        return Math.hypot(GOAL_X - p.getX(), GOAL_Y - p.getY());
     }
 
     private boolean shootThree() {
@@ -318,11 +332,8 @@ public class BlueAutonFarLimelight12 extends OpMode {
         double pedroY = -xIn + 72;
 
         Pose current = follower.getPose();
-        if (Math.hypot(pedroX - current.getX(), pedroY - current.getY())
-                <= MAX_RELOCALIZE_JUMP_IN) {
-
-            follower.setPose(new Pose(pedroX, pedroY, Math.toRadians(yaw)
-            ));
+        if (Math.hypot(pedroX - current.getX(), pedroY - current.getY()) <= MAX_RELOCALIZE_JUMP_IN) {
+            follower.setPose(new Pose(pedroX, pedroY, Math.toRadians(yaw)));
         }
     }
 
@@ -333,14 +344,15 @@ public class BlueAutonFarLimelight12 extends OpMode {
         backRight.setPower(0);
     }
 
-    // TODO Adjust these
+    // Regression for Flywheel Speed
     public static double flywheelSpeed(double x) {
         return MathFunctions.clamp(
                 -0.0847688 * x * x + 15.36083 * x + 1225.70392,
-                0, 1920
+                0, 2300
         );
     }
 
+    // Regression for Hood Angle
     public static double hoodAngle(double x) {
         return MathFunctions.clamp(
                 -0.0847688 * x * x + 15.36083 * x + 1225.70392,
@@ -349,37 +361,32 @@ public class BlueAutonFarLimelight12 extends OpMode {
     }
 
     private void buildPaths() {
-
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(65.015, 6.875),
                         new Pose(59.710, 15.433)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(90), Math.toRadians(119))
+                .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(119))
                 .build();
 
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(59.710, 15.433),
                         new Pose(39.402, 59.045)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(119), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(119), Math.toRadians(180))
                 .build();
 
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(39.402, 59.045),
                         new Pose(18.202, 59.075)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .build();
 
         path4 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(18.202, 59.075),
                         new Pose(13.294, 66.115)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .build();
 
         path5 = follower.pathBuilder()
@@ -387,64 +394,56 @@ public class BlueAutonFarLimelight12 extends OpMode {
                         new Pose(13.294, 66.115),
                         new Pose(49.667, 42.445),
                         new Pose(59.710, 15.433)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180), Math.toRadians(119))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(119))
                 .build();
 
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(59.710, 15.433),
                         new Pose(41.282, 34.638)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(119), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(119), Math.toRadians(180))
                 .build();
 
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(41.282, 34.638),
                         new Pose(21.777, 35.187)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .build();
 
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(21.777, 35.187),
                         new Pose(59.710, 15.433)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180), Math.toRadians(119))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(119))
                 .build();
 
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(59.710, 15.433),
                         new Pose(38.678, 83.071)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(119), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(119), Math.toRadians(180))
                 .build();
 
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(38.678, 83.071),
                         new Pose(21.473, 83.281)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .build();
 
         path11 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(21.473, 83.281),
                         new Pose(59.710, 15.433)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180), Math.toRadians(119))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(119))
                 .build();
 
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(59.710, 15.433),
                         new Pose(53.255, 19.153)))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(119), Math.toRadians(119))
+                .setLinearHeadingInterpolation(Math.toRadians(119), Math.toRadians(119))
                 .build();
     }
 }
