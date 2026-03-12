@@ -32,11 +32,10 @@ public class NewBotTeleopRedTest extends OpMode {
     private static final int bankVelocity = 1900;
     private static final int farVelocity = 2400;
 
-    //TODO TUNE THIS FOR YOUR FLYWHEEL MAXIMUM VELOCITY
-    private static final double MAX_MOTOR_VELOCITY = 2040.0;
-    //TODO TUNE THIS FOR LEFT STRAFE AND RIGHT FOR STRAFING RIGHT
-    private static final double PROJECTILE_SPEED_LEFT = 150.0;
-    private static final double PROJECTILE_SPEED_RIGHT = 50.0;
+    //TODO TUNE THIS FOR YOUR FLYWHEEL MAXIMUM VELOCITY CHANGE TO PRIVATE WHEN DONE
+    public static final double MAX_MOTOR_VELOCITY = 2020.0;
+    //TODO TUNE THIS FOR LEFT STRAFE AND RIGHT FOR STRAFING RIGHT CHANGE TO PRIVATE WHEN DONE
+    public static double MOTION_COMPENSATION = 0.022;
 
     @Override
     public void init() {
@@ -75,25 +74,19 @@ public class NewBotTeleopRedTest extends OpMode {
         double vx = currentVelocity.getXComponent();
         double vy = currentVelocity.getYComponent();
 
-        double activeProjectileSpeed = 50.0;
-        if (vy > 5.0) {
-            activeProjectileSpeed = PROJECTILE_SPEED_LEFT;
-        } else if (vy < -5.0) {
-            activeProjectileSpeed = PROJECTILE_SPEED_RIGHT;
-        } else {
-            activeProjectileSpeed = (PROJECTILE_SPEED_LEFT + PROJECTILE_SPEED_RIGHT) / 2.0;
-        }
         double distance = Math.hypot(targetX - follower.getPose().getX(), targetY - follower.getPose().getY());
-        double timeOfFlight = distance / activeProjectileSpeed;
 
-        double vTargetX = targetX - (vx * timeOfFlight);
-        double vTargetY = targetY - (vy * timeOfFlight);
+        double vTargetX = targetX - (vx * distance * MOTION_COMPENSATION);
+        double vTargetY = targetY - (vy * distance * MOTION_COMPENSATION);
 
         double dx = vTargetX - follower.getPose().getX();
         double dy = vTargetY - follower.getPose().getY();
 
         double targetHeading = Math.atan2(dy, dx);
         double headingerror = Math.toDegrees(targetHeading) - Math.toDegrees(follower.getPose().getHeading());
+
+        while (headingerror > 180.0)  headingerror -= 360.0;
+        while (headingerror <= -180.0) headingerror += 360.0;
 
         if (autoAimEngaged) {
             follower.setTeleOpDrive(
@@ -104,7 +97,7 @@ public class NewBotTeleopRedTest extends OpMode {
             );
         } else {
             follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
+                    -gamepad1.left_stick_y * 1.1,
                     -gamepad1.left_stick_x,
                     -gamepad1.right_stick_x,
                     true
@@ -120,6 +113,7 @@ public class NewBotTeleopRedTest extends OpMode {
         telemetry.addData("Distance", getDistanceToGoal());
         telemetry.update();
     }
+
 
     private void manualCoreHexAndServoControl() {
         if (gamepad1.cross) {

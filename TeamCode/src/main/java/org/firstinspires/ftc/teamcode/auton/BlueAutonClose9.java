@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.auton;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.*;
+import com.pedropathing.math.MathFunctions;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 
@@ -10,6 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.teleop.NewBotTeleopBlue;
@@ -31,6 +33,13 @@ public class BlueAutonClose9 extends OpMode {
 
     private static final double GOAL_X = 6.5;
     private static final double GOAL_Y = 138;
+    private VoltageSensor batteryVoltageSensor;
+
+    // Flywheel Tuning Variables
+    private static final double MAX_MOTOR_VELOCITY = 2020.0;
+    public static double FLYWHEEL_P = 0.0012;
+    private double targetFlywheelSpeed = 0;
+
     private final Pose startPose =
             new Pose(27.49488054607509, 134.5529010238908, Math.toRadians(145));
 
@@ -38,7 +47,7 @@ public class BlueAutonClose9 extends OpMode {
             path6, path7, path8;
 
     private enum State {
-        PATH_1, PATH_1_WAIT, PREPARE_SHOOT_1, SHOOT_1,
+        PATH_1, PATH_1_WAIT, SHOOT_1,
         PATH_2, PATH_2_WAIT,
         PATH_3, PATH_3_WAIT, INTAKE_WAIT_3,
         PATH_4, PATH_4_WAIT, SHOOT_2,
@@ -64,6 +73,7 @@ public class BlueAutonClose9 extends OpMode {
         frontRight = hardwareMap.get(DcMotor.class, "frontRight");
         backLeft = hardwareMap.get(DcMotor.class, "backLeft");
         backRight = hardwareMap.get(DcMotor.class, "backRight");
+        batteryVoltageSensor = hardwareMap.voltageSensor.iterator().next();
 
         curry.setDirection(DcMotorEx.Direction.FORWARD);
         coreHex.setDirection(DcMotorEx.Direction.REVERSE);
@@ -72,7 +82,7 @@ public class BlueAutonClose9 extends OpMode {
         backLeft.setDirection(DcMotorSimple.Direction.REVERSE);
 
         curry.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        curry.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        curry.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         buildPaths();
     }
@@ -87,14 +97,18 @@ public class BlueAutonClose9 extends OpMode {
     public void loop() {
         follower.update();
 
+        // Calculate the ideal speed based on distance for this frame
+        double autoAimSpeed = flywheelSpeed(getDistanceToGoal());
+
         switch (state) {
             case PATH_1:
-                prepareShooter();
+                targetFlywheelSpeed = autoAimSpeed; // Spin up on the way
                 follower.followPath(path1);
                 state = State.PATH_1_WAIT;
                 break;
 
             case PATH_1_WAIT:
+                targetFlywheelSpeed = autoAimSpeed;
                 if (!follower.isBusy()) {
                     shootTimer.resetTimer();
                     intakeTimer1.resetTimer();
@@ -104,11 +118,12 @@ public class BlueAutonClose9 extends OpMode {
                 break;
 
             case SHOOT_1:
+                targetFlywheelSpeed = autoAimSpeed;
                 if (shootThree()) state = State.PATH_2;
                 break;
 
             case PATH_2:
-                curry.setVelocity(-800);
+                targetFlywheelSpeed = -800; // Reverse intake speed
                 coreHex.setPower(0.45);
                 intake.setPower(1);
                 follower.followPath(path2);
@@ -116,24 +131,27 @@ public class BlueAutonClose9 extends OpMode {
                 break;
 
             case PATH_2_WAIT:
+                targetFlywheelSpeed = -800;
                 if (!follower.isBusy()) state = State.PATH_3;
                 break;
 
             case PATH_3:
-                follower.followPath(path3, 0.5,true);
+                targetFlywheelSpeed = -800;
+                follower.followPath(path3, true);
                 state = State.PATH_3_WAIT;
                 break;
 
             case PATH_3_WAIT:
+                targetFlywheelSpeed = -800;
                 if (!follower.isBusy()) {
                     intakeTimer.resetTimer();
-                    curry.setVelocity(-800);
                     coreHex.setPower(0.45);
                     state = State.INTAKE_WAIT_3;
                 }
                 break;
 
             case INTAKE_WAIT_3:
+                targetFlywheelSpeed = -800;
                 if (intakeTimer.getElapsedTimeSeconds() >= INTAKE_WAIT_TIME) {
                     coreHex.setPower(0);
                     intake.setPower(0);
@@ -142,12 +160,13 @@ public class BlueAutonClose9 extends OpMode {
                 break;
 
             case PATH_4:
-                prepareShooter();
+                targetFlywheelSpeed = autoAimSpeed; // Spin up on the way
                 follower.followPath(path4, true);
                 state = State.PATH_4_WAIT;
                 break;
 
             case PATH_4_WAIT:
+                targetFlywheelSpeed = autoAimSpeed;
                 if (!follower.isBusy()) {
                     shootTimer.resetTimer();
                     intakeTimer1.resetTimer();
@@ -157,11 +176,12 @@ public class BlueAutonClose9 extends OpMode {
                 break;
 
             case SHOOT_2:
+                targetFlywheelSpeed = autoAimSpeed;
                 if (shootThree()) state = State.PATH_5;
                 break;
 
             case PATH_5:
-                curry.setPower(0);
+                targetFlywheelSpeed = 0; // Turn off flywheel during transit
                 intake.setPower(0);
                 coreHex.setPower(0);
                 follower.followPath(path5, true);
@@ -169,27 +189,29 @@ public class BlueAutonClose9 extends OpMode {
                 break;
 
             case PATH_5_WAIT:
+                targetFlywheelSpeed = 0;
                 if (!follower.isBusy()) state = State.PATH_6;
                 break;
 
             case PATH_6:
-                curry.setVelocity(-800);
+                targetFlywheelSpeed = -800; // Reverse intake speed
                 coreHex.setPower(0.45);
                 intake.setPower(1);
-                follower.followPath(path6, 0.5,true);
+                follower.followPath(path6, true);
                 state = State.PATH_6_WAIT;
                 break;
 
             case PATH_6_WAIT:
+                targetFlywheelSpeed = -800;
                 if (!follower.isBusy()) {
                     intakeTimer.resetTimer();
-                    curry.setVelocity(-800);
                     coreHex.setPower(0.45);
                     state = State.INTAKE_WAIT_6;
                 }
                 break;
 
             case INTAKE_WAIT_6:
+                targetFlywheelSpeed = -800;
                 if (intakeTimer.getElapsedTimeSeconds() >= INTAKE_WAIT_TIME) {
                     coreHex.setPower(0);
                     state = State.PATH_7;
@@ -197,12 +219,13 @@ public class BlueAutonClose9 extends OpMode {
                 break;
 
             case PATH_7:
-                prepareShooter();
+                targetFlywheelSpeed = autoAimSpeed; // Spin up on the way
                 follower.followPath(path7, true);
                 state = State.PATH_7_WAIT;
                 break;
 
             case PATH_7_WAIT:
+                targetFlywheelSpeed = autoAimSpeed;
                 if (!follower.isBusy()) {
                     shootTimer.resetTimer();
                     intakeTimer1.resetTimer();
@@ -212,32 +235,40 @@ public class BlueAutonClose9 extends OpMode {
                 break;
 
             case SHOOT_3:
+                targetFlywheelSpeed = autoAimSpeed;
                 if (shootThree()) state = State.DONE;
                 break;
 
             case DONE:
-                curry.setPower(0);
+                targetFlywheelSpeed = 0;
                 coreHex.setPower(0);
                 intake.setPower(0);
                 NewBotTeleopBlue.startingPose = follower.getPose();
                 stopDrive();
                 break;
         }
-    }
 
-    private void prepareShooter() {
-        curry.setVelocity(1550);
+        // Apply the calculated speed consistently at the end of the loop
+        setShooterVelocity(targetFlywheelSpeed);
+
+        telemetry.addData("State", state);
+        telemetry.addData("Target Speed", targetFlywheelSpeed);
+        telemetry.addData("Current Velocity", curry.getVelocity());
+        telemetry.update();
     }
 
     private boolean shootThree() {
         if (shootTimer.getElapsedTimeSeconds() < SHOOT_TIME) {
-
-            // Fixed the intake logic so it actually turns off after 1.5s
-            if(intakeTimer1.getElapsedTimeSeconds() < 0.6){
+            if (intakeTimer1.getElapsedTimeSeconds() < 0.6) {
                 intake.setPower(1);
             }
 
-            if (curry.getVelocity() > 1530 && curry.getVelocity() < 1630 && coreTimer.getElapsedTimeSeconds() > 0.3) {
+            double currentVelocity = curry.getVelocity();
+
+            // DYNAMIC BOUNDS: Checks if velocity is within ±20 of the calculated target
+            boolean upToSpeed = currentVelocity > (targetFlywheelSpeed - 20) && currentVelocity < (targetFlywheelSpeed + 20);
+
+            if (upToSpeed && coreTimer.getElapsedTimeSeconds() > 0.3) {
                 coreHex.setPower(COREHEX_POWER);
             } else {
                 coreHex.setPower(0);
@@ -245,6 +276,46 @@ public class BlueAutonClose9 extends OpMode {
             return false;
         }
         return true;
+    }
+
+    private double getDistanceToGoal() {
+        Pose p = follower.getPose();
+        return Math.hypot(GOAL_X - p.getX(), GOAL_Y - p.getY());
+    }
+
+    private double flywheelSpeed(double x) {
+        return MathFunctions.clamp(
+                0.0000227176 * Math.pow(x, 4) - 0.0106575 * Math.pow(x, 3) + 1.82035 * Math.pow(x, 2) - 129.17615 * x + 4077.24017,
+                0, 2400
+        );
+    }
+
+    private void setShooterVelocity(double targetVelocity) {
+        if (targetVelocity == 0) {
+            curry.setPower(0);
+            return;
+        }
+
+        double currentVoltage = batteryVoltageSensor.getVoltage();
+        if (currentVoltage <= 0) {
+            currentVoltage = 12.0;
+        }
+
+        // Allows us to use the P-controller for negative intaking speeds too
+        double sign = Math.signum(targetVelocity);
+        double absTarget = Math.abs(targetVelocity);
+        double currentSpeed = Math.abs(curry.getVelocity());
+
+        double basePower = absTarget / MAX_MOTOR_VELOCITY;
+        double feedforward = basePower * (12.0 / currentVoltage);
+
+        double error = absTarget - currentSpeed;
+        double feedback = error * FLYWHEEL_P;
+
+        double totalPower = feedforward + feedback;
+
+        // Apply direction and clamp to [-1.0, 1.0]
+        curry.setPower(sign * Math.max(0.0, Math.min(totalPower, 1.0)));
     }
 
     private void stopDrive() {

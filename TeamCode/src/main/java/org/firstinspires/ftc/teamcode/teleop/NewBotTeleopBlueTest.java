@@ -18,8 +18,8 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @TeleOp
 public class NewBotTeleopBlueTest extends OpMode {
     private Follower follower;
-    public double targetX = 6.5;
-    public double targetY = 138.0;
+    public double targetX = 10;
+    public double targetY = 140;
     private boolean autoAimEngaged = false;
     private boolean lastRightTrigger = false;
     private boolean manual = false;
@@ -28,21 +28,20 @@ public class NewBotTeleopBlueTest extends OpMode {
     private DcMotorEx curry;
     private DcMotor coreHex;
     private DcMotor intake;
-    public static double velocity = 700;
-    private static final int bankVelocity = 1900;
-    private static final int farVelocity = 2400;
+    public static int bankVelocity = 1000;
+    public static int farVelocity = 1200;
 
-    //TODO TUNE THIS FOR YOUR FLYWHEEL MAXIMUM VELOCITY
-    private static final double MAX_MOTOR_VELOCITY = 2040.0;
-    //TODO TUNE THIS FOR LEFT STRAFE AND RIGHT FOR STRAFING RIGHT
-    private static final double PROJECTILE_SPEED_LEFT = 150.0;
-    private static final double PROJECTILE_SPEED_RIGHT = 50.0;
+    public static double FLYWHEEL_P = 0.8;
+
+    public static double MAX_MOTOR_VELOCITY = 1600;
+
+    public static double MOTION_COMP_RIGHT = 0.021;
+    public static double MOTION_COMP_LEFT = 0.021;
 
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(66.075, 7.017, Math.toRadians(90)));
-        //follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
 
         curry = hardwareMap.get(DcMotorEx.class, "flywheel");
         coreHex = hardwareMap.get(DcMotor.class, "coreHex");
@@ -75,19 +74,20 @@ public class NewBotTeleopBlueTest extends OpMode {
         double vx = currentVelocity.getXComponent();
         double vy = currentVelocity.getYComponent();
 
-        double activeProjectileSpeed = 50.0;
-        if (vy > 5.0) {
-            activeProjectileSpeed = PROJECTILE_SPEED_LEFT;
-        } else if (vy < -5.0) {
-            activeProjectileSpeed = PROJECTILE_SPEED_RIGHT;
-        } else {
-            activeProjectileSpeed = (PROJECTILE_SPEED_LEFT + PROJECTILE_SPEED_RIGHT) / 2.0;
-        }
         double distance = Math.hypot(targetX - follower.getPose().getX(), targetY - follower.getPose().getY());
-        double timeOfFlight = distance / activeProjectileSpeed;
 
-        double vTargetX = targetX - (vx * timeOfFlight);
-        double vTargetY = targetY - (vy * timeOfFlight);
+        // Calculate the raw vector to the target to determine our orientation
+        double dx_raw = targetX - follower.getPose().getX();
+        double dy_raw = targetY - follower.getPose().getY();
+
+        // Cross product determines if velocity is drifting left or right of the target
+        double crossProduct = (vx * dy_raw) - (vy * dx_raw);
+
+        // Positive cross product means right strafe relative to goal, negative means left
+        double activeMotionComp = (crossProduct > 0) ? MOTION_COMP_RIGHT : MOTION_COMP_LEFT;
+
+        double vTargetX = targetX - (vx * distance * activeMotionComp);
+        double vTargetY = targetY - (vy * distance * activeMotionComp);
 
         double dx = vTargetX - follower.getPose().getX();
         double dy = vTargetY - follower.getPose().getY();
@@ -95,16 +95,21 @@ public class NewBotTeleopBlueTest extends OpMode {
         double targetHeading = Math.atan2(dy, dx);
         double headingerror = Math.toDegrees(targetHeading) - Math.toDegrees(follower.getPose().getHeading());
 
+        while (headingerror > 180.0)  headingerror -= 360.0;
+        while (headingerror <= -180.0) headingerror += 360.0;
+
         if (autoAimEngaged) {
+            follower.setMaxPower(0.7);
             follower.setTeleOpDrive(
                     -gamepad1.left_stick_y,
                     -gamepad1.left_stick_x,
-                    headingerror / 100.0,
+                    headingerror / 130.0,
                     true
             );
         } else {
+            follower.setMaxPower(1);
             follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
+                    -gamepad1.left_stick_y * 1.1,
                     -gamepad1.left_stick_x,
                     -gamepad1.right_stick_x,
                     true
@@ -115,11 +120,13 @@ public class NewBotTeleopBlueTest extends OpMode {
 
         telemetry.addData("Aim Mode", autoAimEngaged ? "AUTO LOCK" : "MANUAL");
         telemetry.addData("Flywheel Mode", manual ? "MANUAL" : "AUTO-SPEED");
+        telemetry.addData("Active Motion Comp", crossProduct > 0 ? "RIGHT (" + MOTION_COMP_RIGHT + ")" : "LEFT (" + MOTION_COMP_LEFT + ")");
         telemetry.addData("Target Heading Error Blue:", headingerror);
         telemetry.addData("Flywheel Velocity", curry.getVelocity());
         telemetry.addData("Distance", getDistanceToGoal());
         telemetry.update();
     }
+
 
     private void manualCoreHexAndServoControl() {
         if (gamepad1.cross) {
@@ -177,9 +184,9 @@ public class NewBotTeleopBlueTest extends OpMode {
 
     public static double flywheelSpeed(double x) {
         return MathFunctions.clamp(
-                0.0000223981 * x * x * x * x - 0.0097206 * x * x * x + 1.52224 * x * x - 93.96192 * x + 3493.02631,
+                0.0000227176 * Math.pow(x,4) - 0.0106575 * Math.pow(x,3) + 1.82035 * Math.pow(x,2)- 129.17615 * x + 4077.24017,
                 0, 2400
-        );
+        ) ;
     }
 
     private void setFlywheelVelocityCustom(double targetVelocity) {
@@ -192,9 +199,15 @@ public class NewBotTeleopBlueTest extends OpMode {
         if (currentVoltage <= 0) {
             currentVoltage = 12.0;
         }
-        double basePower = targetVelocity / MAX_MOTOR_VELOCITY;
-        double compensatedPower = basePower * (12.0 / currentVoltage);
 
-        curry.setPower(Math.min(compensatedPower, 1.0));
+        double basePower = targetVelocity / MAX_MOTOR_VELOCITY;
+        double feedforward = basePower * (12.0 / currentVoltage);
+
+        double currentSpeed = curry.getVelocity();
+        double error = targetVelocity - currentSpeed;
+        double feedback = error * FLYWHEEL_P;
+
+        double totalPower = feedforward + feedback;
+        curry.setPower(Math.max(0.0, Math.min(totalPower, 1.0)));
     }
 }
