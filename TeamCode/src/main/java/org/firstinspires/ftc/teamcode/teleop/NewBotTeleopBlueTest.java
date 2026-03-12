@@ -42,6 +42,8 @@ public class NewBotTeleopBlueTest extends OpMode {
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(66.075, 7.017, Math.toRadians(90)));
+        //TODO UNCOMMENT LINE BELOW WHEN USING AUTON
+        //follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
 
         curry = hardwareMap.get(DcMotorEx.class, "flywheel");
         coreHex = hardwareMap.get(DcMotor.class, "coreHex");
