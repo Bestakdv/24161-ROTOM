@@ -5,7 +5,6 @@ import com.pedropathing.math.MathFunctions;
 import com.pedropathing.math.Vector;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -13,13 +12,11 @@ import com.pedropathing.follower.Follower;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-
-@Configurable
 @TeleOp
 public class NewBotTeleopRedTest extends OpMode {
     private Follower follower;
-    public double targetX = 134;
-    public double targetY = 140;
+    private final double targetXRed = 135.5;
+    private final double targetYBlue = 140;
     private boolean autoAimEngaged = false;
     private boolean lastRightTrigger = false;
     private boolean manual = false;
@@ -38,12 +35,14 @@ public class NewBotTeleopRedTest extends OpMode {
     public static double MOTION_COMP_RIGHT = 0.021;
     public static double MOTION_COMP_LEFT = 0.021;
 
+    public static Pose startingPose;
+
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(66.075, 7.017, Math.toRadians(90)));
+        //follower.setStartingPose(new Pose(66.075, 7.017, Math.toRadians(90)));
         //TODO UNCOMMENT LINE BELOW WHEN USING AUTON
-        //follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
+        follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
 
         curry = hardwareMap.get(DcMotorEx.class, "flywheel");
         coreHex = hardwareMap.get(DcMotor.class, "coreHex");
@@ -76,11 +75,11 @@ public class NewBotTeleopRedTest extends OpMode {
         double vx = currentVelocity.getXComponent();
         double vy = currentVelocity.getYComponent();
 
-        double distance = Math.hypot(targetX - follower.getPose().getX(), targetY - follower.getPose().getY());
+        double distance = Math.hypot(targetXRed - follower.getPose().getX(), targetYBlue - follower.getPose().getY());
 
         // Calculate the raw vector to the target to determine our orientation
-        double dx_raw = targetX - follower.getPose().getX();
-        double dy_raw = targetY - follower.getPose().getY();
+        double dx_raw = targetXRed - follower.getPose().getX();
+        double dy_raw = targetYBlue - follower.getPose().getY();
 
         // Cross product determines if velocity is drifting left or right of the target
         double crossProduct = (vx * dy_raw) - (vy * dx_raw);
@@ -88,8 +87,8 @@ public class NewBotTeleopRedTest extends OpMode {
         // Positive cross product means right strafe relative to goal, negative means left
         double activeMotionComp = (crossProduct > 0) ? MOTION_COMP_RIGHT : MOTION_COMP_LEFT;
 
-        double vTargetX = targetX - (vx * distance * activeMotionComp);
-        double vTargetY = targetY - (vy * distance * activeMotionComp);
+        double vTargetX = targetXRed - (vx * distance * activeMotionComp);
+        double vTargetY = targetYBlue - (vy * distance * activeMotionComp);
 
         double dx = vTargetX - follower.getPose().getX();
         double dy = vTargetY - follower.getPose().getY();
@@ -105,7 +104,7 @@ public class NewBotTeleopRedTest extends OpMode {
             follower.setTeleOpDrive(
                     -gamepad1.left_stick_y,
                     -gamepad1.left_stick_x,
-                    headingerror / 130.0,
+                    headingerror / 150.0,
                     true
             );
         } else {
@@ -181,7 +180,7 @@ public class NewBotTeleopRedTest extends OpMode {
 
     private double getDistanceToGoal() {
         Pose p = follower.getPose();
-        return Math.hypot(targetX - p.getX(), targetY - p.getY());
+        return Math.hypot(targetXRed - p.getX(), targetYBlue - p.getY());
     }
 
     public static double flywheelSpeed(double x) {
