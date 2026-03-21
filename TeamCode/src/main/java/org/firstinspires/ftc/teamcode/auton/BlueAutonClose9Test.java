@@ -1,3 +1,4 @@
+//lowkey ignore this, it was just the old auto
 package org.firstinspires.ftc.teamcode.auton;
 
 import com.pedropathing.follower.Follower;

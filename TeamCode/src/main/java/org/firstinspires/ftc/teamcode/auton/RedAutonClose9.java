@@ -16,10 +16,10 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.teleop.NewBotTeleopBlue;
-import org.firstinspires.ftc.teamcode.teleop.NewBotTeleopBlueTest;
+import org.firstinspires.ftc.teamcode.teleop.NewBotTeleopRedTest;
 
-@Autonomous(name = "BlueAutonClose9")
-public class BlueAutonClose9 extends OpMode {
+@Autonomous(name = "RedAutonClose9")
+public class RedAutonClose9 extends OpMode {
     private Follower follower;
     private DcMotorEx curry;
     private DcMotor coreHex, intake;
@@ -33,8 +33,8 @@ public class BlueAutonClose9 extends OpMode {
     private static final double SHOOT_TIME = 5.0;
     private static final double INTAKE_WAIT_TIME = 0.3;
 
-    private static final double GOAL_X = 6.5;
-    private static final double GOAL_Y = 138;
+    private static final double GOAL_X = 135.5;
+    private static final double GOAL_Y = 140;
     private VoltageSensor batteryVoltageSensor;
 
     // Flywheel Tuning Variables
@@ -47,7 +47,7 @@ public class BlueAutonClose9 extends OpMode {
     public static double MOTION_COMP_LEFT = 0.021;
 
     private final Pose startPose =
-            new Pose(27.49488054607509, 134.5529010238908, Math.toRadians(145));
+            new Pose(27.49488054607509, 134.5529010238908, Math.toRadians(145)).mirror();
 
     private PathChain path1, path2, path3, path4, path5,
             path6, path7, path8;
@@ -253,7 +253,7 @@ public class BlueAutonClose9 extends OpMode {
                 coreHex.setPower(0);
                 intake.setPower(0);
                 stopDrive();
-                NewBotTeleopBlueTest.startingPose = follower.getPose();
+                NewBotTeleopRedTest.startingPose = follower.getPose();
                 break;
         }
 
@@ -382,7 +382,7 @@ public class BlueAutonClose9 extends OpMode {
                 .addPath(
                         new BezierLine(
                                 new Pose(52.536, 90.805),
-                                new Pose(46.0002662116041, 86.44333788395906)
+                                new Pose(46.000, 86.443)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(137), Math.toRadians(180))
@@ -391,8 +391,8 @@ public class BlueAutonClose9 extends OpMode {
         path3 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(46.0002662116041, 86.44333788395906),
-                                new Pose(25.5, 86.82)
+                                new Pose(46.000, 86.443),
+                                new Pose(19.031, 86.820)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
@@ -401,7 +401,7 @@ public class BlueAutonClose9 extends OpMode {
         path4 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(25.5, 86.82),
+                                new Pose(19.031, 86.820),
                                 new Pose(52.536, 90.805)
                         )
                 )
@@ -412,7 +412,7 @@ public class BlueAutonClose9 extends OpMode {
                 .addPath(
                         new BezierLine(
                                 new Pose(52.536, 90.805),
-                                new Pose(47.003, 63.023890784982946)
+                                new Pose(47.003, 63.024)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(137), Math.toRadians(180))
@@ -421,8 +421,8 @@ public class BlueAutonClose9 extends OpMode {
         path6 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(47.003, 63.023890784982946),
-                                new Pose(18.030716723549485, 63.023890784982946)
+                                new Pose(47.003, 63.024),
+                                new Pose(19.031, 63.024)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
@@ -431,8 +431,8 @@ public class BlueAutonClose9 extends OpMode {
         path7 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(18.030716723549485, 63.023890784982946),
-                                new Pose(63.427662957074716, 93.5135135135135)
+                                new Pose(19.031, 63.024),
+                                new Pose(63.428, 93.514)
                         )
                 )
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(140))
