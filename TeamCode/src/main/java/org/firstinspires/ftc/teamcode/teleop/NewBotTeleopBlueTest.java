@@ -11,13 +11,14 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.pedropathing.follower.Follower;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.teamcode.auton.PoseStorage;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp
 public class NewBotTeleopBlueTest extends OpMode {
     private Follower follower;
-    private final double targetXBlue = 8.5;
-    private final double targetYBlue = 140;
+    public final double targetXBlue = 8.5;
+    public final double targetYBlue = 140;
     private boolean autoAimEngaged = false;
     private boolean lastRightTrigger = false;
     private boolean manual = false;
@@ -43,7 +44,8 @@ public class NewBotTeleopBlueTest extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         //follower.setStartingPose(new Pose(66.075, 7.017, Math.toRadians(90)));
         //TODO UNCOMMENT LINE BELOW WHEN USING AUTON
-        follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
+        //follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
+        follower.setStartingPose(PoseStorage.currentPose);
 
         curry = hardwareMap.get(DcMotorEx.class, "flywheel");
         coreHex = hardwareMap.get(DcMotor.class, "coreHex");
@@ -78,14 +80,11 @@ public class NewBotTeleopBlueTest extends OpMode {
 
         double distance = Math.hypot(targetXBlue - follower.getPose().getX(), targetYBlue - follower.getPose().getY());
 
-        // Calculate the raw vector to the target to determine our orientation
         double dx_raw = targetXBlue - follower.getPose().getX();
         double dy_raw = targetYBlue - follower.getPose().getY();
 
-        // Cross product determines if velocity is drifting left or right of the target
         double crossProduct = (vx * dy_raw) - (vy * dx_raw);
 
-        // Positive cross product means right strafe relative to goal, negative means left
         double activeMotionComp = (crossProduct > 0) ? MOTION_COMP_RIGHT : MOTION_COMP_LEFT;
 
         double vTargetX = targetXBlue - (vx * distance * activeMotionComp);
@@ -143,7 +142,12 @@ public class NewBotTeleopBlueTest extends OpMode {
             intake.setPower(0.9);
         } else if (gamepad1.right_bumper) {
             intake.setPower(-0.9);
-        } else {
+        }
+        else if(gamepad1.dpad_down){
+            Pose currentPose = new Pose(90.2116, 6.7713, Math.toRadians(90));
+            follower.setPose(currentPose);
+        }
+        else {
             intake.setPower(0);
         }
     }
@@ -163,7 +167,11 @@ public class NewBotTeleopBlueTest extends OpMode {
                 setFlywheelVelocityCustom(farVelocity);
             } else {
                 double dist = getDistanceToGoal();
-                setFlywheelVelocityCustom(flywheelSpeed(dist));
+                if (dist > 74){
+                    setFlywheelVelocityCustom(flywheelSpeed(dist)+10);}
+                else{
+                    setFlywheelVelocityCustom(flywheelSpeed(dist));
+                }
             }
         }
         else if (gamepad1.square) {
@@ -171,7 +179,12 @@ public class NewBotTeleopBlueTest extends OpMode {
                 setFlywheelVelocityCustom(bankVelocity);
             } else {
                 double dist = getDistanceToGoal();
-                setFlywheelVelocityCustom(flywheelSpeed(dist));
+                if (dist > 110){
+                    setFlywheelVelocityCustom(flywheelSpeed(dist)+10);}
+                else{
+                    setFlywheelVelocityCustom(flywheelSpeed(dist));
+                }
+
             }
         }
         else {
@@ -186,8 +199,8 @@ public class NewBotTeleopBlueTest extends OpMode {
 
     public static double flywheelSpeed(double x) {
         return MathFunctions.clamp(
-                0.0000227176 * Math.pow(x,4) - 0.0106575 * Math.pow(x,3) + 1.82035 * Math.pow(x,2)- 129.17615 * x + 4077.24017,
-                0, 2400
+                0.0000834623 * Math.pow(x,4) - 0.0202993 * Math.pow(x,3) + 1.83707 * Math.pow(x,2)- 68.54301 * x + 1736,
+                0, 1160
         ) ;
     }
 

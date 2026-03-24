@@ -17,8 +17,8 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.teleop.NewBotTeleopBlueTest;
 import org.firstinspires.ftc.teamcode.teleop.NewBotTeleopRedTest;
 
-@Autonomous(name = "BluePartnerAuton")
-public class BluePartnerAuton extends OpMode {
+@Autonomous(name = "BlueExodus")
+public class BlueExodus extends OpMode {
     private Follower follower;
     private DcMotorEx curry;
     private DcMotor coreHex, intake;
@@ -27,14 +27,17 @@ public class BluePartnerAuton extends OpMode {
 
     private final Timer shootTimer = new Timer();
     private final Timer loopTimer = new Timer();
+    private final Timer exodusTimer = new Timer();
     private final Timer intakeTimer = new Timer();
 
     private static final double COREHEX_POWER = 1;
     private static final double SHOOT_TIME = 4.5;
 
+    // Reduced time for the small CoreHex push to fit 3 pieces
     private static final double INTAKE_WAIT_TIME = 0.4;
     private static final double INTAKE_WAIT_TIME1 = 0.3;
 
+    // Auto-Aim Variables from TeleOp
     private static final double GOAL_X = 7.5;
     private static final double GOAL_Y = 140;
     public static double MAX_MOTOR_VELOCITY = 1600.0;
@@ -42,8 +45,9 @@ public class BluePartnerAuton extends OpMode {
     private double targetFlywheelSpeed = 0;
 
     private final Pose startPose =
-            new Pose(53.788, 6.771, Math.toRadians(90));
+            new Pose(31.73290937996821, 137.34817170111288, Math.toRadians(180));
 
+    // Removed path5
     private PathChain path1, path2, path3, path4,
             path6, path7, path8, path9, path10, path11, path12, path13, path14;
 
@@ -88,6 +92,7 @@ public class BluePartnerAuton extends OpMode {
         backLeft.setDirection(DcMotorSimple.Direction.REVERSE);
 
         curry.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        // Changed to RUN_WITHOUT_ENCODER for custom PID/Feedforward to work correctly
         curry.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         buildPaths();
@@ -104,17 +109,19 @@ public class BluePartnerAuton extends OpMode {
         follower.update();
 
         PoseStorage.currentPose = follower.getPose();
+        // Calculate auto-aim speed for the current frame
         double autoAimSpeed = flywheelSpeed(getDistanceToGoal());
 
         switch (state) {
+            // --- CYCLE 1: SHOOT AFTER PATH 1 ---
             case PATH_1:
-                targetFlywheelSpeed = autoAimSpeed;
+                targetFlywheelSpeed = autoAimSpeed; // Spin up on the way
                 follower.followPath(path1, true);
                 state = State.PATH_1_WAIT;
                 break;
             case PATH_1_WAIT:
                 targetFlywheelSpeed = autoAimSpeed;
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() && exodusTimer.getElapsedTimeSeconds()>10) {
                     shootTimer.resetTimer();
                     intakeTimer.resetTimer();
                     state = State.SHOOT_1;
@@ -122,11 +129,12 @@ public class BluePartnerAuton extends OpMode {
                 break;
             case SHOOT_1:
                 targetFlywheelSpeed = autoAimSpeed;
-                if (shootThree()) state = State.PATH_2;
+                if (shootThree()) state = State.DONE;
                 break;
 
+            // --- CYCLE 2: INTAKE PATHS 2-3, SHOOT AFTER PATH 4 ---
             case PATH_2:
-                targetFlywheelSpeed = 0;
+                targetFlywheelSpeed = 0; // Save power while moving to intake
                 follower.followPath(path2, true);
                 state = State.PATH_2_WAIT;
                 break;
@@ -145,7 +153,7 @@ public class BluePartnerAuton extends OpMode {
                 targetFlywheelSpeed = 0;
                 if (!follower.isBusy()) {
                     intakeTimer.resetTimer();
-                    coreHex.setPower(COREHEX_POWER);
+                    coreHex.setPower(COREHEX_POWER); // Start the small bump to seat the pieces
                     state = State.INTAKE_WAIT_3;
                 }
                 break;
@@ -159,7 +167,7 @@ public class BluePartnerAuton extends OpMode {
                 break;
 
             case PATH_4:
-                targetFlywheelSpeed = autoAimSpeed;
+                targetFlywheelSpeed = autoAimSpeed; // Spin up on the way
                 follower.followPath(path4, true);
                 state = State.PATH_4_WAIT;
                 break;
@@ -176,9 +184,10 @@ public class BluePartnerAuton extends OpMode {
                 if (shootThree()) state = State.PATH_6;
                 break;
 
+            // --- CYCLE 3: INTAKE PATHS 6-8, SHOOT AFTER PATH 9 ---
             case PATH_6:
-                targetFlywheelSpeed = 0;
-                intake.setPower(1);
+                targetFlywheelSpeed = 0; // Save power
+                intake.setPower(1); // Intake on through paths 6-8
                 follower.followPath(path6, true);
                 state = State.PATH_6_WAIT;
                 loopTimer.resetTimer();
@@ -209,7 +218,7 @@ public class BluePartnerAuton extends OpMode {
                 targetFlywheelSpeed = 0;
                 if (!follower.isBusy() && loopTimer.getElapsedTimeSeconds() > 0.3) {
                     intakeTimer.resetTimer();
-                    coreHex.setPower(COREHEX_POWER);
+                    coreHex.setPower(COREHEX_POWER); // Small bump to seat pieces
                     state = State.INTAKE_WAIT_8;
                 }
                 break;
@@ -223,7 +232,7 @@ public class BluePartnerAuton extends OpMode {
                 break;
 
             case PATH_9:
-                targetFlywheelSpeed = autoAimSpeed;
+                targetFlywheelSpeed = autoAimSpeed; // Spin up on the way
                 follower.followPath(path9, true);
                 state = State.PATH_9_WAIT;
                 break;
@@ -240,9 +249,10 @@ public class BluePartnerAuton extends OpMode {
                 if (shootThree()) state = State.PATH_10;
                 break;
 
+            // --- CYCLE 4: INTAKE PATHS 10-12, SHOOT AFTER PATH 13 ---
             case PATH_10:
-                targetFlywheelSpeed = 0;
-                intake.setPower(1);
+                targetFlywheelSpeed = 0; // Save power
+                intake.setPower(1); // Intake on through paths 10-12
                 follower.followPath(path10, true);
                 state = State.PATH_10_WAIT;
                 break;
@@ -273,7 +283,7 @@ public class BluePartnerAuton extends OpMode {
                 targetFlywheelSpeed = 0;
                 if (!follower.isBusy()) {
                     intakeTimer.resetTimer();
-                    coreHex.setPower(COREHEX_POWER);
+                    coreHex.setPower(COREHEX_POWER); // Small bump to seat pieces
                     PoseStorage.currentPose = follower.getPose();
                     state = State.INTAKE_WAIT_12;
                 }
@@ -289,7 +299,7 @@ public class BluePartnerAuton extends OpMode {
                 break;
 
             case PATH_13:
-                targetFlywheelSpeed = autoAimSpeed;
+                targetFlywheelSpeed = autoAimSpeed; // Spin up on the way
                 follower.followPath(path13, true);
                 state = State.PATH_13_WAIT;
                 PoseStorage.currentPose = follower.getPose();
@@ -309,6 +319,7 @@ public class BluePartnerAuton extends OpMode {
                 if (shootThree()) state = State.PATH_14;
                 break;
 
+            // --- FINISH ---
             case PATH_14:
                 targetFlywheelSpeed = 0;
                 follower.followPath(path14, true);
@@ -321,14 +332,16 @@ public class BluePartnerAuton extends OpMode {
 
             case DONE:
                 targetFlywheelSpeed = 0;
+                curry.setVelocity(0);
                 coreHex.setPower(0);
                 intake.setPower(0);
                 stopDrive();
                 follower.update();
-                NewBotTeleopRedTest.startingPose=follower.getPose();
+                NewBotTeleopBlueTest.startingPose=follower.getPose();
                 break;
         }
 
+        // Apply calculated velocity
         setShooterVelocity(targetFlywheelSpeed+50);
 
         telemetry.addData("State", state);
@@ -349,7 +362,7 @@ public class BluePartnerAuton extends OpMode {
             if (currentSpeed >= targetFlywheelSpeed +32  && currentSpeed <= targetFlywheelSpeed + 70) {
                 coreHex.setPower(COREHEX_POWER);
             } else {
-                coreHex.setPower(0);
+                coreHex.setPower(0); // Cut the feed if it bogs down or overshoots
             }
 
             return false;
@@ -366,10 +379,7 @@ public class BluePartnerAuton extends OpMode {
     }
 
     private double flywheelSpeed(double x) {
-        return MathFunctions.clamp(
-                0.0000227176 * Math.pow(x, 4) - 0.0106575 * Math.pow(x, 3) + 1.82035 * Math.pow(x, 2) - 129.17615 * x + 4077.24017,
-                0, 2400
-        );
+        return 760;
     }
 
     private void setShooterVelocity(double targetVelocity) {
@@ -383,6 +393,7 @@ public class BluePartnerAuton extends OpMode {
             currentVoltage = 12.0;
         }
 
+        // Calculate feedforward and feedback exactly as in Teleop
         double basePower = targetVelocity / MAX_MOTOR_VELOCITY;
         double feedforward = basePower * (12.0 / currentVoltage);
 
@@ -405,11 +416,11 @@ public class BluePartnerAuton extends OpMode {
         path1 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(53.788, 6.771),
-                                new Pose(63.126, 18.307)
+                                new Pose(31.73290937996821, 137.34817170111288),
+                                new Pose(56.45786963434022, 134.89984101748806)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(115))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(181.5))
                 .build();
 
         path2 = follower.pathBuilder()

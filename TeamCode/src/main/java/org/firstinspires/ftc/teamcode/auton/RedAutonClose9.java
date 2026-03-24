@@ -253,7 +253,7 @@ public class RedAutonClose9 extends OpMode {
                 coreHex.setPower(0);
                 intake.setPower(0);
                 stopDrive();
-                NewBotTeleopRedTest.startingPose = follower.getPose();
+                PoseStorage.currentPose = follower.getPose();
                 break;
         }
 
